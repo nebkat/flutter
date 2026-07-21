@@ -14,6 +14,7 @@ import 'package:flutter/foundation.dart';
 import 'basic.dart';
 import 'debug.dart';
 import 'framework.dart';
+import 'media_query.dart';
 
 const double _kOffset = 40.0; // distance to bottom of banner, at a 45 degree angle inwards
 const double _kHeight = 12.0; // height of banner
@@ -68,6 +69,7 @@ class BannerPainter extends CustomPainter {
     this.color = _kColor,
     this.textStyle = _kTextStyle,
     this.shadow = _kShadow,
+    this.padding = EdgeInsets.zero,
   }) : super(repaint: PaintingBinding.instance.systemFonts) {
     assert(debugMaybeDispatchCreated('widgets', 'BannerPainter', this));
   }
@@ -119,6 +121,19 @@ class BannerPainter extends CustomPainter {
   /// shadow effects.
   final BoxShadow shadow;
 
+  /// {@template flutter.widgets.Banner.padding}
+  /// The insets to keep the banner clear of.
+  ///
+  /// The banner is moved inwards from its corner by these insets, and its
+  /// painting is clipped to the remaining area, so it can be kept out from
+  /// under intrusions such as the system status bar under edge-to-edge.
+  /// Typically set to the ambient [MediaQueryData.viewPadding].
+  ///
+  /// Defaults to [EdgeInsets.zero], which paints the banner flush against the
+  /// corner of the canvas.
+  /// {@endtemplate}
+  final EdgeInsets padding;
+
   bool _prepared = false;
   TextPainter? _textPainter;
   late Paint _paintShadow;
@@ -150,6 +165,11 @@ class BannerPainter extends CustomPainter {
     if (!_prepared) {
       _prepare();
     }
+    if (padding != EdgeInsets.zero) {
+      // Keep the banner (and its overhanging diagonal tip) out of the insets,
+      // e.g. the system status bar under edge-to-edge.
+      canvas.clipRect(padding.deflateRect(Offset.zero & size));
+    }
     canvas
       ..translate(_translationX(size.width), _translationY(size.height))
       ..rotate(_rotation)
@@ -168,7 +188,8 @@ class BannerPainter extends CustomPainter {
     return message != oldDelegate.message ||
         location != oldDelegate.location ||
         color != oldDelegate.color ||
-        textStyle != oldDelegate.textStyle;
+        textStyle != oldDelegate.textStyle ||
+        padding != oldDelegate.padding;
   }
 
   @override
@@ -176,21 +197,22 @@ class BannerPainter extends CustomPainter {
 
   double _translationX(double width) {
     return switch ((layoutDirection, location)) {
-      (TextDirection.rtl, BannerLocation.topStart) => width,
-      (TextDirection.ltr, BannerLocation.topStart) => 0.0,
-      (TextDirection.rtl, BannerLocation.topEnd) => 0.0,
-      (TextDirection.ltr, BannerLocation.topEnd) => width,
-      (TextDirection.rtl, BannerLocation.bottomStart) => width - _kBottomOffset,
-      (TextDirection.ltr, BannerLocation.bottomStart) => _kBottomOffset,
-      (TextDirection.rtl, BannerLocation.bottomEnd) => _kBottomOffset,
-      (TextDirection.ltr, BannerLocation.bottomEnd) => width - _kBottomOffset,
+      (TextDirection.rtl, BannerLocation.topStart) => width - padding.right,
+      (TextDirection.ltr, BannerLocation.topStart) => padding.left,
+      (TextDirection.rtl, BannerLocation.topEnd) => padding.left,
+      (TextDirection.ltr, BannerLocation.topEnd) => width - padding.right,
+      (TextDirection.rtl, BannerLocation.bottomStart) => width - _kBottomOffset - padding.right,
+      (TextDirection.ltr, BannerLocation.bottomStart) => _kBottomOffset + padding.left,
+      (TextDirection.rtl, BannerLocation.bottomEnd) => _kBottomOffset + padding.left,
+      (TextDirection.ltr, BannerLocation.bottomEnd) => width - _kBottomOffset - padding.right,
     };
   }
 
   double _translationY(double height) {
     return switch (location) {
-      BannerLocation.bottomStart || BannerLocation.bottomEnd => height - _kBottomOffset,
-      BannerLocation.topStart || BannerLocation.topEnd => 0.0,
+      BannerLocation.bottomStart ||
+      BannerLocation.bottomEnd => height - _kBottomOffset - padding.bottom,
+      BannerLocation.topStart || BannerLocation.topEnd => padding.top,
     };
   }
 
@@ -227,6 +249,7 @@ class Banner extends StatefulWidget {
     this.color = _kColor,
     this.textStyle = _kTextStyle,
     this.shadow = _kShadow,
+    this.padding = EdgeInsets.zero,
   });
 
   /// The widget to show behind the banner.
@@ -280,6 +303,9 @@ class Banner extends StatefulWidget {
   /// shadow effects.
   final BoxShadow shadow;
 
+  /// {@macro flutter.widgets.Banner.padding}
+  final EdgeInsets padding;
+
   @override
   State<Banner> createState() => _BannerState();
 }
@@ -309,6 +335,7 @@ class _BannerState extends State<Banner> {
       color: widget.color,
       textStyle: widget.textStyle,
       shadow: widget.shadow,
+      padding: widget.padding,
     );
 
     return CustomPaint(foregroundPainter: _painter, child: widget.child);
@@ -327,6 +354,9 @@ class _BannerState extends State<Banner> {
     );
     properties.add(ColorProperty('color', widget.color, showName: false));
     widget.textStyle.debugFillProperties(properties, prefix: 'text ');
+    properties.add(
+      DiagnosticsProperty<EdgeInsets>('padding', widget.padding, defaultValue: EdgeInsets.zero),
+    );
   }
 }
 
@@ -351,6 +381,7 @@ class CheckedModeBanner extends StatelessWidget {
         message: 'DEBUG',
         textDirection: TextDirection.ltr,
         location: BannerLocation.topEnd,
+        padding: MediaQuery.maybeViewPaddingOf(context) ?? EdgeInsets.zero,
         child: result,
       );
       return true;

@@ -370,4 +370,121 @@ void main() {
     );
     expect(tester.getSize(find.byType(CheckedModeBanner)), Size.zero);
   });
+
+  test('A Banner with padding offsets inward from the corner (topEnd, LTR)', () {
+    const EdgeInsets padding = EdgeInsets.only(top: 40.0, right: 24.0);
+    final bannerPainter = BannerPainter(
+      message: 'foo',
+      textDirection: TextDirection.ltr,
+      location: BannerLocation.topEnd,
+      layoutDirection: TextDirection.ltr,
+      padding: padding,
+    );
+
+    final canvas = TestCanvas();
+
+    bannerPainter.paint(canvas, const Size(1000.0, 1000.0));
+
+    final Invocation translateCommand = canvas.invocations.firstWhere((Invocation invocation) {
+      return invocation.memberName == #translate;
+    });
+
+    expect(translateCommand.positionalArguments[0], 1000.0 - padding.right);
+    expect(translateCommand.positionalArguments[1], padding.top);
+  });
+
+  test('A Banner with padding offsets inward from the corner (bottomStart, LTR)', () {
+    const EdgeInsets padding = EdgeInsets.only(left: 16.0, bottom: 48.0);
+    final double kBottomOffset = 40.0 + math.sqrt1_2 * 12.0;
+    final bannerPainter = BannerPainter(
+      message: 'foo',
+      textDirection: TextDirection.ltr,
+      location: BannerLocation.bottomStart,
+      layoutDirection: TextDirection.ltr,
+      padding: padding,
+    );
+
+    final canvas = TestCanvas();
+
+    bannerPainter.paint(canvas, const Size(1000.0, 1000.0));
+
+    final Invocation translateCommand = canvas.invocations.firstWhere((Invocation invocation) {
+      return invocation.memberName == #translate;
+    });
+
+    expect(translateCommand.positionalArguments[0], kBottomOffset + padding.left);
+    expect(translateCommand.positionalArguments[1], 1000.0 - kBottomOffset - padding.bottom);
+  });
+
+  test('A Banner with padding clips its painting to the inset area', () {
+    const EdgeInsets padding = EdgeInsets.only(top: 40.0, right: 24.0);
+    final bannerPainter = BannerPainter(
+      message: 'foo',
+      textDirection: TextDirection.ltr,
+      location: BannerLocation.topEnd,
+      layoutDirection: TextDirection.ltr,
+      padding: padding,
+    );
+
+    final canvas = TestCanvas();
+
+    bannerPainter.paint(canvas, const Size(1000.0, 1000.0));
+
+    final Invocation clipCommand = canvas.invocations.firstWhere((Invocation invocation) {
+      return invocation.memberName == #clipRect;
+    });
+
+    expect(
+      clipCommand.positionalArguments[0],
+      const Rect.fromLTRB(0.0, 40.0, 1000.0 - 24.0, 1000.0),
+    );
+  });
+
+  test('A Banner with zero padding does not clip', () {
+    final bannerPainter = BannerPainter(
+      message: 'foo',
+      textDirection: TextDirection.ltr,
+      location: BannerLocation.topEnd,
+      layoutDirection: TextDirection.ltr,
+    );
+
+    final canvas = TestCanvas();
+
+    bannerPainter.paint(canvas, const Size(1000.0, 1000.0));
+
+    expect(
+      canvas.invocations.any((Invocation invocation) => invocation.memberName == #clipRect),
+      isFalse,
+    );
+  });
+
+  testWidgets('CheckedModeBanner offsets the debug banner by MediaQuery.viewPadding', (
+    WidgetTester tester,
+  ) async {
+    const EdgeInsets viewPadding = EdgeInsets.only(top: 40.0, right: 24.0);
+    await tester.pumpWidget(
+      const MediaQuery(
+        data: MediaQueryData(viewPadding: viewPadding),
+        child: Directionality(
+          textDirection: TextDirection.ltr,
+          child: CheckedModeBanner(child: SizedBox(width: 100.0, height: 100.0)),
+        ),
+      ),
+    );
+
+    expect(tester.widget<Banner>(find.byType(Banner)).padding, viewPadding);
+  });
+
+  testWidgets('CheckedModeBanner falls back to zero padding without a MediaQuery', (
+    WidgetTester tester,
+  ) async {
+    await tester.pumpWidget(
+      const Directionality(
+        textDirection: TextDirection.ltr,
+        child: CheckedModeBanner(child: SizedBox(width: 100.0, height: 100.0)),
+      ),
+    );
+
+    expect(tester.widget<Banner>(find.byType(Banner)).padding, EdgeInsets.zero);
+  });
 }
